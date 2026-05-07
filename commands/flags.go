@@ -43,6 +43,11 @@ var allowInsecureTlsFlag = &cli.BoolFlag{
 	Usage: "[Optional] Skip TLS certificate verification for HTTPS checks. Use this if you are probing endpoints with self-signed certificates or broken trust chains.",
 }
 
+var allowWeakCiphersFlag = &cli.BoolFlag{
+	Name:  "allow-weak-ciphers",
+	Usage: "[Optional] Allow weak TLS ciphers and versions (TLS 1.0+). Use this for monitoring legacy endpoints with outdated security configurations.",
+}
+
 var scriptTimeoutFlag = &cli.IntFlag{
 	Name:  "script-timeout",
 	Usage: "[Optional] Timeout, in seconds, to wait for the scripts to complete. Example: 10",
@@ -107,6 +112,7 @@ var defaultFlags = []cli.Flag{
 	httpCheckFlag,
 	httpCheckVerifyPayloadFlag,
 	allowInsecureTlsFlag,
+	allowWeakCiphersFlag,
 	scriptTimeoutFlag,
 	detailedStatusFlag,
 	httpReadTimeoutFlag,
@@ -176,6 +182,7 @@ func parseOptions(cmd *cli.Command) (*options.Options, error) {
 	singleflight := cmd.Bool("singleflight")
 	detailedStatus := cmd.Bool("detailed-status")
 	allowInsecureTls := cmd.Bool("allow-insecure-tls")
+	allowWeakCiphers := cmd.Bool("allow-weak-ciphers")
 
 	scriptTimeout := int(cmd.Int("script-timeout"))
 	httpReadTimeout := int(cmd.Int("http-read-timeout"))
@@ -202,6 +209,7 @@ func parseOptions(cmd *cli.Command) (*options.Options, error) {
 		Singleflight:     singleflight,
 		DetailedStatus:   detailedStatus,
 		AllowInsecureTLS: allowInsecureTls,
+		AllowWeakCiphers: allowWeakCiphers,
 		Listener:         listener,
 		Logger:           logger.Logger,
 	}, nil

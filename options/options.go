@@ -27,6 +27,7 @@ type Options struct {
 	Singleflight     bool
 	DetailedStatus   bool
 	AllowInsecureTLS bool
+	AllowWeakCiphers bool
 	Listener         string
 	Logger           *logrus.Logger
 }

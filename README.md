@@ -13,6 +13,52 @@ A common challenge when configuring cloud infrastructure (such as Auto Scaling G
 - **Early Short-Circuiting:** If **any** single probe fails, it immediately aborts the remaining active probes and swiftly returns an `HTTP 504 Gateway Timeout`.
 - **Performance at Scale:** Prevents resource exhaustion from request bursts via Singleflight caching, ensuring concurrent load balancer pings share probe execution states rather than duplicating expensive background processes.
 
+## Data Flow and Control Logic
+
+The following diagram and description outline the internal operational sequence of the `health-checker` from startup to request fulfillment.
+
+```mermaid
+sequenceDiagram
+    participant LB as Load Balancer
+    participant Srv as health-checker (Server)
+    participant Handler as httpHandler
+    participant Runner as runChecks
+    participant Probe as Probes (TCP/HTTP/Script)
+
+    LB->>Srv: HTTP GET /
+    Srv->>Handler: Invoke Handler
+    Handler->>Runner: Execute runChecks (Singleflight)
+    
+    rect rgb(240, 240, 240)
+        Note over Runner, Probe: Parallel Execution
+        Runner->>Probe: Start TCP Probe(s)
+        Runner->>Probe: Start Script Probe(s)
+        Runner->>Probe: Start HTTP Probe(s)
+    end
+    
+    alt All Success
+        Probe-->>Runner: Success
+        Runner-->>Handler: Status OK
+        Handler-->>LB: HTTP 200 OK
+    else Any Failure
+        Probe-->>Runner: Failure Detected
+        Runner->>Probe: masterCancel() (Short-circuit / Abort active)
+        Runner-->>Handler: Status Failed
+        Handler-->>LB: HTTP 504 Gateway Timeout
+    end
+```
+
+### Operational Sequence
+
+1.  **Bootstrap (`main.go` & `commands/flags.go`)**: The application parses command-line flags into a structured `Options` registry. During this phase, scripts are validated against an allowlist regex and normalized into absolute paths via `filepath.Abs`.
+2.  **Inbound Request (`server.go`)**: The HTTP server listens for pings. Upon receiving a request, it enters the `httpHandler`.
+3.  **Concurrency Control**: If `singleflight` is enabled, multiple concurrent inbound requests are "collapsed" into a single execution of the probe logic to save system resources.
+4.  **Parallel Probing (`runChecks`)**: The application creates a `masterCtx` (context with cancellation). It then spawns separate goroutines for every configured port, script, and HTTP URL.
+5.  **Early Short-Circuit**: 
+    *   If all probes succeed, the server returns `200 OK`.
+    *   If **any** probe fails, it immediately triggers the `masterCancel()` function. This sends a signal to all other active goroutines to terminate immediately (aborting TCP dials, killing script processes, and closing HTTP connections).
+6.  **Safety & Normalization**: Script results and HTTP payloads are sanitized and matched before being aggregated into the final response body.
+
 ## Architecture and Design Choices
 
 The application is written in Go to maximize concurrency, safety, and cross-platform native execution. 
@@ -61,6 +107,7 @@ The `health-checker` is fully statically compiled via Go, meaning it has zero sy
 | `--http` | `string` | *None* | **[One of port/script/http Required]** An HTTP(S) URL to probe. The check succeeds if it returns a 2xx status code. Specify one or more times. |
 | `--verify-payload` | `string` | *None* | **[Optional]** A regular expression to match against the body of the HTTP(S) checks. If specified, the check only succeeds if the status code is 2xx AND the response body matches the regex. Must be specified exactly once per `--http` flag if used. |
 | `--allow-insecure-tls` | `bool` | `false` | **[Optional]** Skip TLS certificate verification for HTTPS checks. Use this if you are probing endpoints with self-signed certificates or broken trust chains. |
+| `--allow-weak-ciphers` | `bool` | `false` | **[Optional]** Allow weak TLS ciphers and versions (TLS 1.0+). Use this for monitoring legacy endpoints with outdated security configurations. |
 | `--listener` | `string` | `0.0.0.0:5500` | The IP address and port on which inbound HTTP connections will be accepted. |
 | `--script-timeout` | `int` | `5` | Timeout, in seconds, to wait for scripts to exit. Applies to all configured script targets. |
 | `--tcp-dial-timeout` | `int` | `5` | Timeout, in seconds, for dialing TCP connections for health checks. |
@@ -147,4 +194,14 @@ health-checker --listener "0.0.0.0:5000" \
   --verify-payload "\"status\":\s*\"READY\"" \
   --http "http://localhost:8080/api/v2/health" \
   --verify-payload "\"OK\""
+```
+
+#### Example 5: Monitoring Legacy HTTPS Endpoints
+Probe a legacy internal endpoint that uses a self-signed certificate and an outdated TLS stack (e.g., TLS 1.0/1.1). Combine `--allow-insecure-tls` to skip certificate verification and `--allow-weak-ciphers` to lower the minimum supported TLS version from the default of 1.2 to 1.0.
+
+```bash
+health-checker --listener "0.0.0.0:5000" \
+  --http "https://legacy-system.internal:8443/health" \
+  --allow-insecure-tls \
+  --allow-weak-ciphers
 ```

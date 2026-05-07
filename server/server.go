@@ -300,11 +300,18 @@ func attemptHttpConnection(ctx context.Context, httpCheck options.HttpCheck, opt
 
 	// Create a new client to avoid sharing state or keeping keep-alives open unnecessarily
 	transport := http.DefaultTransport.(*http.Transport).Clone()
-	if opts.AllowInsecureTLS {
-		// This is a user-requested feature (--allow-insecure-tls) for monitoring environments where self-signed certs are common.
-		// nosemgrep: problem-based-packs.insecure-transport.go-stdlib.bypass-tls-verification.bypass-tls-verification
-		transport.TLSClientConfig = &tls.Config{InsecureSkipVerify: true, MinVersion: tls.VersionTLS13} // #nosec G402
+	minTlsVersion := uint16(tls.VersionTLS12)
+	if opts.AllowWeakCiphers {
+		minTlsVersion = tls.VersionTLS10
 	}
+
+	// We always configure TLSClientConfig to ensure the MinVersion is enforced consistently.
+	// InsecureSkipVerify is only enabled if the user explicitly requested it via --allow-insecure-tls.
+	// nosemgrep: problem-based-packs.insecure-transport.go-stdlib.bypass-tls-verification.bypass-tls-verification
+	transport.TLSClientConfig = &tls.Config{
+		InsecureSkipVerify: opts.AllowInsecureTLS,
+		MinVersion:         minTlsVersion,
+	} // #nosec G402
 
 	client := &http.Client{
 		Timeout:   defaultTimeout,
