@@ -4,6 +4,7 @@ import (
 	"encoding/csv"
 	"fmt"
 	"os"
+	"path/filepath"
 	"regexp"
 	"strings"
 
@@ -41,8 +42,8 @@ type HttpCheck struct {
 }
 
 // allowedScriptPattern enforces that scripts only contain safe alphanumeric characters,
-// directory separators, dashes, underscores, spaces, dots, colons, and quotes.
-var allowedScriptPattern = regexp.MustCompile(`^[a-zA-Z0-9/\-_ .":]+$`)
+// directory separators (including backslashes for Windows), dashes, underscores, spaces, dots, colons, and quotes.
+var allowedScriptPattern = regexp.MustCompile(`^[a-zA-Z0-9/\-_ .\\":]+$`)
 
 func ParseScripts(scriptStrings []string) ([]Script, error) {
 	rv := []Script{}
@@ -64,7 +65,12 @@ func ParseScripts(scriptStrings []string) ([]Script, error) {
 			commandArr = strings.Split(s, " ")
 		}
 
-		scriptName := commandArr[0]
+		// Normalize the path and ensure it's absolute for safety and predictability
+		scriptName := filepath.Clean(commandArr[0])
+		absPath, err := filepath.Abs(scriptName)
+		if err == nil {
+			scriptName = absPath
+		}
 
 		// Strictly enforce that the provided script is a valid file that actually exists
 		// on disk, preventing direct execution of global system binaries like `ping` or `rm`

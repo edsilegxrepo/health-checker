@@ -2,8 +2,9 @@ package main
 
 import (
 	"context"
-	"github.com/gruntwork-io/health-checker/commands"
 	"os"
+
+	"github.com/gruntwork-io/health-checker/commands"
 )
 
 // This variable is set at build time using -ldflags parameters. For example, we typically set this flag in circle.yml

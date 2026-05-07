@@ -1,10 +1,11 @@
 package options
 
 import (
-	"github.com/stretchr/testify/assert"
 	"os"
 	"path/filepath"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
 )
 
 func TestParseScripts(t *testing.T) {
@@ -15,16 +16,19 @@ func TestParseScripts(t *testing.T) {
 	}()
 
 	dummyScriptPath := filepath.Join(tmpDir, "dummy_script.bat")
-	err := os.WriteFile(dummyScriptPath, []byte("echo hello"), 0755)
+	err := os.WriteFile(dummyScriptPath, []byte("echo hello"), 0o755)
 	assert.NoError(t, err)
 
 	// Create a temporary script with spaces in the path
 	spaceDir := filepath.Join(tmpDir, "space dir")
-	err = os.Mkdir(spaceDir, 0755)
+	err = os.Mkdir(spaceDir, 0o755)
 	assert.NoError(t, err)
 	spaceScriptPath := filepath.Join(spaceDir, "space_script.sh")
-	err = os.WriteFile(spaceScriptPath, []byte("echo hello"), 0755)
+	err = os.WriteFile(spaceScriptPath, []byte("echo hello"), 0o755)
 	assert.NoError(t, err)
+
+	absDummy, _ := filepath.Abs(dummyScriptPath)
+	absSpace, _ := filepath.Abs(spaceScriptPath)
 
 	testCases := []struct {
 		name        string
@@ -40,26 +44,26 @@ func TestParseScripts(t *testing.T) {
 		},
 		{
 			name:        "Single command no args",
-			input:       []string{filepath.ToSlash(dummyScriptPath)},
-			expected:    []Script{{Name: filepath.ToSlash(dummyScriptPath), Args: []string{}}},
+			input:       []string{absDummy},
+			expected:    []Script{{Name: absDummy, Args: []string{}}},
 			expectError: false,
 		},
 		{
 			name:        "Single command with args",
-			input:       []string{filepath.ToSlash(dummyScriptPath) + " version"},
-			expected:    []Script{{Name: filepath.ToSlash(dummyScriptPath), Args: []string{"version"}}},
+			input:       []string{absDummy + " version"},
+			expected:    []Script{{Name: absDummy, Args: []string{"version"}}},
 			expectError: false,
 		},
 		{
 			name:        "Multiple commands",
-			input:       []string{filepath.ToSlash(dummyScriptPath) + " env", filepath.ToSlash(dummyScriptPath) + " version"},
-			expected:    []Script{{Name: filepath.ToSlash(dummyScriptPath), Args: []string{"env"}}, {Name: filepath.ToSlash(dummyScriptPath), Args: []string{"version"}}},
+			input:       []string{absDummy + " env", absDummy + " version"},
+			expected:    []Script{{Name: absDummy, Args: []string{"env"}}, {Name: absDummy, Args: []string{"version"}}},
 			expectError: false,
 		},
 		{
 			name:        "Command with spaces in path",
-			input:       []string{`"` + filepath.ToSlash(spaceScriptPath) + `" arg1 arg2`},
-			expected:    []Script{{Name: filepath.ToSlash(spaceScriptPath), Args: []string{"arg1", "arg2"}}},
+			input:       []string{`"` + absSpace + `" arg1 arg2`},
+			expected:    []Script{{Name: absSpace, Args: []string{"arg1", "arg2"}}},
 			expectError: false,
 		},
 		{
@@ -70,7 +74,7 @@ func TestParseScripts(t *testing.T) {
 		},
 		{
 			name:        "Forbidden shell character blocked",
-			input:       []string{filepath.ToSlash(dummyScriptPath) + " & rm -rf /"},
+			input:       []string{absDummy + " & rm -rf /"},
 			expected:    nil,
 			expectError: true,
 		},

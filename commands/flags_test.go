@@ -14,14 +14,14 @@ import (
 	"github.com/urfave/cli/v3"
 )
 
-func createDummyScript(t *testing.T, dir string, name string, content string) string {
+func createDummyScript(t *testing.T, dir, name, content string) string {
 	scriptPath := filepath.Join(dir, name)
 	if runtime.GOOS == "windows" {
 		scriptPath += ".bat"
 	} else {
 		scriptPath += ".sh"
 	}
-	err := os.WriteFile(scriptPath, []byte(content), 0755)
+	err := os.WriteFile(scriptPath, []byte(content), 0o755)
 	if err != nil {
 		t.Fatalf("Failed to create dummy script: %v", err)
 	}
@@ -131,7 +131,6 @@ func TestParseChecksFromConfig(t *testing.T) {
 
 	for _, testCase := range testCases {
 		t.Run(testCase.name, func(t *testing.T) {
-
 			var actualOptions *options.Options
 			var actualErr error
 
@@ -145,7 +144,6 @@ func TestParseChecksFromConfig(t *testing.T) {
 			args := append([]string{"health-checker"}, testCase.args...)
 
 			err := app.Run(context.Background(), args)
-
 			// If Run returns an error (like missing a required flag), that's our actualErr
 			if err != nil {
 				actualErr = err
@@ -165,14 +163,13 @@ func TestParseChecksFromConfig(t *testing.T) {
 			}
 		})
 	}
-
 }
 
 func defaultListener() string {
 	return test.ListenerString(DEFAULT_LISTENER_IP_ADDRESS, DEFAULT_LISTENER_PORT)
 }
 
-func assertOptionsEqual(t *testing.T, expected options.Options, actual options.Options, msgAndArgs ...interface{}) {
+func assertOptionsEqual(t *testing.T, expected, actual options.Options, msgAndArgs ...any) {
 	assert.Equal(t, expected.ScriptTimeout, actual.ScriptTimeout, msgAndArgs...)
 	assert.Equal(t, expected.HttpReadTimeout, actual.HttpReadTimeout, msgAndArgs...)
 	assert.Equal(t, expected.HttpWriteTimeout, actual.HttpWriteTimeout, msgAndArgs...)

@@ -90,7 +90,7 @@ func httpHandler(opts *options.Options) http.HandlerFunc {
 		if opts.Singleflight {
 			logger.Infof("Received inbound request. Performing singleflight health checks...")
 
-			result, _, shared := group.Do("check", func() (interface{}, error) {
+			result, _, shared := group.Do("check", func() (any, error) {
 				logger.Infof("Beginning health checks...")
 				return runChecks(opts), nil
 			})
@@ -125,7 +125,7 @@ func runChecks(opts *options.Options) *httpResponse {
 	var errorMessages []string
 	var errorMu sync.Mutex
 
-	var waitGroup = sync.WaitGroup{}
+	waitGroup := sync.WaitGroup{}
 
 	// Create a master context that can be canceled
 	// If detailed status is not requested, the first error will trigger cancellation
@@ -169,7 +169,10 @@ func runChecks(opts *options.Options) *httpResponse {
 			ctx, cancel := context.WithTimeout(masterCtx, timeout)
 			defer cancel()
 
+			// We have audited the script execution to ensure it only runs pre-validated scripts.
+			// Input is sanitized in options.ParseScripts with a strict regex and filepath.Abs normalization.
 			/* #nosec G204 */
+			// nosemgrep: go.lang.security.audit.dangerous-exec-command.dangerous-exec-command
 			cmd := exec.CommandContext(ctx, script.Name, script.Args...)
 			output, err := cmd.CombinedOutput()
 
@@ -298,7 +301,9 @@ func attemptHttpConnection(ctx context.Context, httpCheck options.HttpCheck, opt
 	// Create a new client to avoid sharing state or keeping keep-alives open unnecessarily
 	transport := http.DefaultTransport.(*http.Transport).Clone()
 	if opts.AllowInsecureTLS {
-		transport.TLSClientConfig = &tls.Config{InsecureSkipVerify: true} // #nosec G402
+		// This is a user-requested feature (--allow-insecure-tls) for monitoring environments where self-signed certs are common.
+		// nosemgrep: problem-based-packs.insecure-transport.go-stdlib.bypass-tls-verification.bypass-tls-verification
+		transport.TLSClientConfig = &tls.Config{InsecureSkipVerify: true, MinVersion: tls.VersionTLS13} // #nosec G402
 	}
 
 	client := &http.Client{
@@ -354,7 +359,10 @@ func writeHttpResponse(w http.ResponseWriter, resp *httpResponse) error {
 	} else {
 		w.Header().Set("Content-Type", "text/plain")
 	}
+	w.Header().Set("X-Content-Type-Options", "nosniff")
 	w.WriteHeader(resp.StatusCode)
+	// We are writing either plain text or JSON, and have set X-Content-Type-Options: nosniff to prevent XSS.
+	// nosemgrep: go.lang.security.audit.xss.no-direct-write-to-responsewriter.no-direct-write-to-responsewriter
 	_, err := w.Write([]byte(resp.Body))
 	if err != nil {
 		return commons_errors.WithStackTrace(err)

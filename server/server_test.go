@@ -8,9 +8,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
-
 	"runtime"
-
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -22,14 +20,14 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func createDummyScript(t *testing.T, dir string, name string, content string) string {
+func createDummyScript(t *testing.T, dir, name, content string) string {
 	scriptPath := filepath.Join(dir, name)
 	if runtime.GOOS == "windows" {
 		scriptPath += ".bat"
 	} else {
 		scriptPath += ".sh"
 	}
-	err := os.WriteFile(scriptPath, []byte(content), 0755)
+	err := os.WriteFile(scriptPath, []byte(content), 0o755)
 	if err != nil {
 		t.Fatalf("Failed to create dummy script: %v", err)
 	}
@@ -180,7 +178,6 @@ func TestParseChecksFromConfig(t *testing.T) {
 	for _, testCase := range testCases {
 		t.Run(testCase.name, func(t *testing.T) {
 			ports, err := test.GetFreePorts(1 + testCase.numports)
-
 			if err != nil {
 				assert.FailNow(t, "Failed to get free ports: %v", err.Error())
 			}
@@ -234,7 +231,6 @@ func TestParseChecksFromConfig(t *testing.T) {
 }
 
 func TestSingleflight(t *testing.T) {
-
 	testCases := []struct {
 		name                 string
 		singleflight         bool
@@ -299,7 +295,7 @@ func TestSingleflight(t *testing.T) {
 			// underyling check should be performed.
 			var wg sync.WaitGroup
 			wg.Add(10)
-			for i := 0; i < 10; i++ {
+			for range 10 {
 				go func() {
 					resp, err := http.Get(ts.URL)
 					if err != nil {
@@ -316,7 +312,6 @@ func TestSingleflight(t *testing.T) {
 			assert.Equal(t, testCase.expectedRequestCount, requestCount)
 		})
 	}
-
 }
 
 func closeListeners(t *testing.T, listeners []net.Listener) {
@@ -335,7 +330,7 @@ func handleRequests(t *testing.T, l net.Listener, counter *int32) {
 		// We don't log these when testing because we're forcibly closing the socket
 		// from the outside. If you're debugging and wish to enable the logging,
 		// uncomment the lines below
-		//_, err := l.Accept()
+		// _, err := l.Accept()
 		//if err != nil {
 		//	t.Logf("Error accepting: %s", err.Error())
 		//}

@@ -11,10 +11,12 @@ import (
 	"github.com/urfave/cli/v3"
 )
 
-const DEFAULT_LISTENER_IP_ADDRESS = "0.0.0.0"
-const DEFAULT_LISTENER_PORT = 5500
-const DEFAULT_SCRIPT_TIMEOUT_SEC = 5
-const ENV_VAR_NAME_DEBUG_MODE = "HEALTH_CHECKER_DEBUG"
+const (
+	DEFAULT_LISTENER_IP_ADDRESS = "0.0.0.0"
+	DEFAULT_LISTENER_PORT       = 5500
+	DEFAULT_SCRIPT_TIMEOUT_SEC  = 5
+	ENV_VAR_NAME_DEBUG_MODE     = "HEALTH_CHECKER_DEBUG"
+)
 
 var portFlag = &cli.StringSliceFlag{
 	Name:  "port",
